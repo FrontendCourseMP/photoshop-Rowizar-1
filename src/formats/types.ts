@@ -12,7 +12,7 @@ export type RasterImage = {
   width: number;
   height: number;
   /** RGBA, row-major, 4 bytes per pixel — compatible with ImageData.data */
-  pixels: Uint8ClampedArray;
+  pixels: Uint8ClampedArray<ArrayBuffer>;
   meta: {
     format: SourceFormat;
     /** Bits per channel in the source file: 8 for PNG/JPEG, 7 for GB7. */
