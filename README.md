@@ -4,6 +4,8 @@
 сохранение PNG / JPEG / GB7. Следующие лабы наращивают функционал
 (фильтры, цветовые модели, гистограммы и т.д.).
 
+**🌐 Live**: https://frontendcoursemp.github.io/photoshop-Rowizar-1/
+
 ## Запуск
 
 ```bash
@@ -21,6 +23,13 @@ npm run preview      # просмотр production-сборки
 npm run lint         # eslint .
 ```
 
+## Тестовые изображения
+
+В [`public/samples/`](public/samples/) лежат три GB7-файла (из LMS):
+`gradient-half-mask.gb7`, `kapibara-mask.gb7`, `vertical-kapibara.gb7`.
+Открываются как обычные PNG/JPG — кнопкой Open или перетаскиванием.
+
 ## Стек
 
-React 18 + TypeScript (strict), Vite, Tailwind CSS, Vitest.
+React 18 + TypeScript (strict), Vite, Tailwind CSS, shadcn/ui, Vitest,
+sonner. Деплой — GitHub Actions на GitHub Pages.

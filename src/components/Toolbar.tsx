@@ -1,6 +1,7 @@
-import { useRef } from 'react';
-import { FolderOpen, Maximize2, Minimize2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Download, FolderOpen, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from './ui/button';
+import { SaveAsDialog } from './SaveAsDialog';
 import type { RasterImage } from '@/formats/types';
 
 type Props = {
@@ -15,6 +16,7 @@ const ACCEPTED = '.png,.jpg,.jpeg,.gb7,image/png,image/jpeg';
 
 export function Toolbar({ image, onPickFile, fitToView, onToggleFit, isLoading }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [saveOpen, setSaveOpen] = useState(false);
 
   const handlePick = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -44,6 +46,16 @@ export function Toolbar({ image, onPickFile, fitToView, onToggleFit, isLoading }
         onChange={handlePick}
       />
 
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setSaveOpen(true)}
+        disabled={!image || isLoading}
+      >
+        <Download className="mr-1 h-4 w-4" />
+        Save As
+      </Button>
+
       <div className="ml-auto flex items-center gap-2">
         <Button
           variant="ghost"
@@ -56,6 +68,14 @@ export function Toolbar({ image, onPickFile, fitToView, onToggleFit, isLoading }
           <span className="ml-1">{fitToView ? '100%' : 'Fit'}</span>
         </Button>
       </div>
+
+      {image && (
+        <SaveAsDialog
+          image={image}
+          open={saveOpen}
+          onOpenChange={setSaveOpen}
+        />
+      )}
     </div>
   );
 }
