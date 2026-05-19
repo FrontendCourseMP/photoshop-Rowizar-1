@@ -4,7 +4,7 @@
 сохранение PNG / JPEG / GB7. Следующие лабы наращивают функционал
 (фильтры, цветовые модели, гистограммы и т.д.).
 
-**🌐 Live**: https://frontendcoursemp.github.io/photoshop-Rowizar-1/
+**🌐 Live**: _добавлю ссылку после деплоя на Vercel_
 
 ## Запуск
 
@@ -32,4 +32,4 @@ npm run lint         # eslint .
 ## Стек
 
 React 18 + TypeScript (strict), Vite, Tailwind CSS, shadcn/ui, Vitest,
-sonner. Деплой — GitHub Actions на GitHub Pages.
+sonner. Деплой — Vercel (auto-build из `main`).
