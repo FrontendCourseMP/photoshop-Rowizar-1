@@ -9,9 +9,10 @@ type Props = {
   fitToView: boolean;
   lastError: string | null;
   onDropFile: (file: File) => void;
+  className?: string;
 };
 
-export function CanvasView({ image, fitToView, lastError, onDropFile }: Props) {
+export function CanvasView({ image, fitToView, lastError, onDropFile, className }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDragging, setDragging] = useState(false);
 
@@ -44,6 +45,7 @@ export function CanvasView({ image, fitToView, lastError, onDropFile }: Props) {
       className={cn(
         'relative flex min-h-0 items-center justify-center overflow-auto bg-muted/40 p-4 transition-colors',
         isDragging && 'bg-primary/10 ring-2 ring-inset ring-primary',
+        className,
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
