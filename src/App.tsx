@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { Toaster, toast } from 'sonner';
 import { Toolbar } from './components/Toolbar';
 import { CanvasView } from './components/CanvasView';
 import { StatusBar } from './components/StatusBar';
@@ -7,15 +8,18 @@ import type { RasterImage } from './formats/types';
 
 export function App() {
   const [image, setImage] = useState<RasterImage | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
   const [fitToView, setFitToView] = useState(true);
 
   const handleLoaded = useCallback((next: RasterImage) => {
     setImage(next);
+    setLastError(null);
+    toast.success(`Загружено: ${next.width} × ${next.height} (${next.meta.format.toUpperCase()})`);
   }, []);
 
   const handleError = useCallback((message: string) => {
-    // TODO: surface this in the UI (toast) — for now just log.
-    console.error(message);
+    setLastError(message);
+    toast.error(message);
   }, []);
 
   const { loadFile, isLoading } = useImageFile({
@@ -32,8 +36,14 @@ export function App() {
         onToggleFit={setFitToView}
         isLoading={isLoading}
       />
-      <CanvasView image={image} fitToView={fitToView} />
+      <CanvasView
+        image={image}
+        fitToView={fitToView}
+        lastError={image ? null : lastError}
+        onDropFile={loadFile}
+      />
       <StatusBar image={image} />
+      <Toaster richColors position="bottom-right" closeButton />
     </div>
   );
 }
