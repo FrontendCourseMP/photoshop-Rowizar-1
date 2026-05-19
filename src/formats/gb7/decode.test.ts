@@ -31,7 +31,12 @@ describe('decodeGB7', () => {
     const img = decodeGB7(buildBuffer(2, 2, 0, [0x00, 0x01, 0x3f, 0x7f]));
     expect(img.width).toBe(2);
     expect(img.height).toBe(2);
-    expect(img.meta).toEqual({ format: 'gb7', bitDepth: 7, hasMask: false });
+    expect(img.meta).toEqual({
+      format: 'gb7',
+      bitDepth: 7,
+      channels: ['Gray'],
+      hasMask: false,
+    });
 
     const expectedG8 = [0, 2, 126, 255];
     for (let i = 0; i < 4; i++) {
@@ -49,6 +54,7 @@ describe('decodeGB7', () => {
       buildBuffer(2, 2, 0x01, [0x80 | 0x7f, 0x00 | 0x7f, 0x80 | 0x00, 0x00 | 0x00]),
     );
     expect(img.meta.hasMask).toBe(true);
+    expect(img.meta.channels).toEqual(['Gray', 'A']);
     expect(img.pixels[3]).toBe(255); // opaque
     expect(img.pixels[7]).toBe(0); // transparent (g7=127 but masked)
     expect(img.pixels[11]).toBe(255); // opaque (g7=0)

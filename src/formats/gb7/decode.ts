@@ -1,4 +1,4 @@
-import type { RasterImage } from '../types';
+import type { Channel, RasterImage } from '../types';
 import {
   GB7_FLAG_MASK,
   GB7_FLAG_RESERVED_BITS,
@@ -60,6 +60,8 @@ export function decodeGB7(buffer: ArrayBuffer): RasterImage {
     pixels[o + 3] = alpha;
   }
 
+  const channels: Channel[] = hasMask ? ['Gray', 'A'] : ['Gray'];
+
   return {
     width,
     height,
@@ -67,6 +69,7 @@ export function decodeGB7(buffer: ArrayBuffer): RasterImage {
     meta: {
       format: 'gb7',
       bitDepth: 7,
+      channels,
       hasMask,
     },
   };

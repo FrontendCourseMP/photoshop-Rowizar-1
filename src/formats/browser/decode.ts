@@ -1,9 +1,18 @@
-import type { RasterImage, SourceFormat } from '../types';
+import type { Channel, RasterImage, SourceFormat } from '../types';
+import { parsePngChannels } from '../png/header';
+import { parseJpegChannels } from '../jpeg/header';
+
+/** Enough bytes to walk JPEG segments to SOF in any realistic file. */
+const HEADER_READ_SIZE = 65536;
 
 /**
  * Decode PNG or JPEG via the browser's built-in image pipeline. This is
  * explicitly allowed by the assignment: PNG/JPEG handling is "a browser
  * capability", whereas raw pixel parsing libraries are not allowed.
+ *
+ * We do parse the file header ourselves first (PNG IHDR, JPEG SOF) to recover
+ * the semantic channel list — the browser pipeline always returns RGBA and
+ * loses that information.
  */
 export async function decodeBrowser(
   file: File,
@@ -12,6 +21,10 @@ export async function decodeBrowser(
   if (format !== 'png' && format !== 'jpeg') {
     throw new Error(`decodeBrowser does not handle format: ${format}`);
   }
+
+  const headerBuf = await file.slice(0, HEADER_READ_SIZE).arrayBuffer();
+  const channels: Channel[] =
+    format === 'png' ? parsePngChannels(headerBuf) : parseJpegChannels(headerBuf);
 
   let bitmap: ImageBitmap;
   try {
@@ -30,7 +43,7 @@ export async function decodeBrowser(
       width: bitmap.width,
       height: bitmap.height,
       pixels: imageData.data,
-      meta: { format, bitDepth: 8 },
+      meta: { format, bitDepth: 8, channels },
     };
   } finally {
     bitmap.close();
