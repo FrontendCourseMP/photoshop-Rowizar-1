@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
-import { Download, FolderOpen, Maximize2, Minimize2 } from 'lucide-react';
+import { Download, FolderOpen, Maximize2, Minimize2, Pipette } from 'lucide-react';
 import { Button } from './ui/button';
 import { SaveAsDialog } from './SaveAsDialog';
 import type { RasterImage } from '@/formats/types';
+import type { Tool } from '@/tools/types';
 
 type Props = {
   image: RasterImage | null;
@@ -10,13 +11,24 @@ type Props = {
   fitToView: boolean;
   onToggleFit: (next: boolean) => void;
   isLoading: boolean;
+  tool: Tool;
+  onToggleTool: (next: Tool) => void;
 };
 
 const ACCEPTED = '.png,.jpg,.jpeg,.gb7,image/png,image/jpeg';
 
-export function Toolbar({ image, onPickFile, fitToView, onToggleFit, isLoading }: Props) {
+export function Toolbar({
+  image,
+  onPickFile,
+  fitToView,
+  onToggleFit,
+  isLoading,
+  tool,
+  onToggleTool,
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [saveOpen, setSaveOpen] = useState(false);
+  const eyedropperOn = tool === 'eyedropper';
 
   const handlePick = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -54,6 +66,20 @@ export function Toolbar({ image, onPickFile, fitToView, onToggleFit, isLoading }
       >
         <Download className="mr-1 h-4 w-4" />
         Save As
+      </Button>
+
+      <div className="mx-1 h-6 w-px bg-border" />
+
+      <Button
+        variant={eyedropperOn ? 'default' : 'ghost'}
+        size="sm"
+        onClick={() => onToggleTool(eyedropperOn ? 'none' : 'eyedropper')}
+        disabled={!image}
+        title="Пипетка — кликни по пикселю, чтобы увидеть его RGB и L*a*b*"
+        aria-pressed={eyedropperOn}
+      >
+        <Pipette className="mr-1 h-4 w-4" />
+        Пипетка
       </Button>
 
       <div className="ml-auto flex items-center gap-2">

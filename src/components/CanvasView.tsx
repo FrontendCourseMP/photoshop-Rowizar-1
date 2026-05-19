@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ImageIcon } from 'lucide-react';
 import { renderToCanvas } from '@/canvas/render';
 import type { RasterImage } from '@/formats/types';
+import type { Tool } from '@/tools/types';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -9,10 +10,20 @@ type Props = {
   fitToView: boolean;
   lastError: string | null;
   onDropFile: (file: File) => void;
+  tool: Tool;
+  onPickPixel?: (x: number, y: number) => void;
   className?: string;
 };
 
-export function CanvasView({ image, fitToView, lastError, onDropFile, className }: Props) {
+export function CanvasView({
+  image,
+  fitToView,
+  lastError,
+  onDropFile,
+  tool,
+  onPickPixel,
+  className,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDragging, setDragging] = useState(false);
 
@@ -40,6 +51,22 @@ export function CanvasView({ image, fitToView, lastError, onDropFile, className 
     if (file) onDropFile(file);
   };
 
+  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (tool !== 'eyedropper' || !onPickPixel) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    // Pixel-space coords from CSS-space click. Canvas may be scaled down via
+    // CSS (fit-to-view) — ratio of native width to its rect width is the
+    // scale factor we apply per axis.
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = Math.floor((event.clientX - rect.left) * scaleX);
+    const y = Math.floor((event.clientY - rect.top) * scaleY);
+    if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return;
+    onPickPixel(x, y);
+  };
+
   return (
     <div
       className={cn(
@@ -54,11 +81,11 @@ export function CanvasView({ image, fitToView, lastError, onDropFile, className 
       {image ? (
         <canvas
           ref={canvasRef}
+          onClick={handleCanvasClick}
           className={cn(
             'border border-border bg-white shadow-sm',
-            fitToView
-              ? 'max-h-full max-w-full object-contain'
-              : 'h-auto w-auto max-w-none',
+            fitToView ? 'max-h-full max-w-full object-contain' : 'h-auto w-auto max-w-none',
+            tool === 'eyedropper' && 'cursor-crosshair',
           )}
           style={{ imageRendering: 'pixelated' }}
         />
