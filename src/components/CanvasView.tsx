@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 import { ImageIcon } from 'lucide-react';
 import { renderToCanvas } from '@/canvas/render';
 import type { RasterImage } from '@/formats/types';
@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 type Props = {
   image: RasterImage | null;
-  fitToView: boolean;
+  viewZoom: number;
   lastError: string | null;
   onDropFile: (file: File) => void;
   tool: Tool;
@@ -15,15 +15,16 @@ type Props = {
   className?: string;
 };
 
-export function CanvasView({
-  image,
-  fitToView,
-  lastError,
-  onDropFile,
-  tool,
-  onPickPixel,
-  className,
-}: Props) {
+/**
+ * Canvas viewport. The outer div is exposed via ref so App can measure
+ * available space for the initial fit-to-view computation. View zoom is a
+ * CSS-only concept — we set inline width/height on the <canvas>, the
+ * bitmap stays at native source size and the browser scales for us.
+ */
+export const CanvasView = forwardRef<HTMLDivElement, Props>(function CanvasView(
+  { image, viewZoom, lastError, onDropFile, tool, onPickPixel, className },
+  ref,
+) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDragging, setDragging] = useState(false);
 
@@ -55,9 +56,8 @@ export function CanvasView({
     if (tool !== 'eyedropper' || !onPickPixel) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // Pixel-space coords from CSS-space click. Canvas may be scaled down via
-    // CSS (fit-to-view) — ratio of native width to its rect width is the
-    // scale factor we apply per axis.
+    // Convert CSS coords to canvas-bitmap coords (the bitmap is always native
+    // source size; CSS may scale it down or up via viewZoom).
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
@@ -67,8 +67,12 @@ export function CanvasView({
     onPickPixel(x, y);
   };
 
+  const cssWidth = image ? Math.max(1, Math.round((image.width * viewZoom) / 100)) : 0;
+  const cssHeight = image ? Math.max(1, Math.round((image.height * viewZoom) / 100)) : 0;
+
   return (
     <div
+      ref={ref}
       className={cn(
         'relative flex min-h-0 items-center justify-center overflow-auto bg-muted/40 p-4 transition-colors',
         isDragging && 'bg-primary/10 ring-2 ring-inset ring-primary',
@@ -84,10 +88,13 @@ export function CanvasView({
           onClick={handleCanvasClick}
           className={cn(
             'border border-border bg-white shadow-sm',
-            fitToView ? 'max-h-full max-w-full object-contain' : 'h-auto w-auto max-w-none',
             tool === 'eyedropper' && 'cursor-crosshair',
           )}
-          style={{ imageRendering: 'pixelated' }}
+          style={{
+            width: `${cssWidth}px`,
+            height: `${cssHeight}px`,
+            imageRendering: 'auto',
+          }}
         />
       ) : (
         <EmptyState lastError={lastError} isDragging={isDragging} />
@@ -100,7 +107,7 @@ export function CanvasView({
       )}
     </div>
   );
-}
+});
 
 function EmptyState({ lastError, isDragging }: { lastError: string | null; isDragging: boolean }) {
   return (

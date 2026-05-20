@@ -13,9 +13,12 @@ import { applyLevels, type LevelsBag } from './transforms/levels';
 import { downsampleImage } from './transforms/downsample';
 import type { PickedPixel, Tool } from './tools/types';
 import { srgbToLab } from './color/srgb-to-lab';
+import { clampZoom, computeFitZoom } from './canvas/zoom';
 
 /** Longest side, in pixels, for the Levels-preview working copy. */
 const PREVIEW_MAX_DIMENSION = 1500;
+/** Step factor for the +/- keyboard zoom shortcuts. */
+const ZOOM_KEY_STEP = 1.25;
 
 export function App() {
   const [sourceImage, setSourceImage] = useState<RasterImage | null>(null);
@@ -23,8 +26,10 @@ export function App() {
   const [tool, setTool] = useState<Tool>('none');
   const [pickedPixel, setPickedPixel] = useState<PickedPixel | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [fitToView, setFitToView] = useState(true);
+  const [viewZoom, setViewZoom] = useState<number>(100);
   const [levelsOpen, setLevelsOpen] = useState(false);
+
+  const viewportRef = useRef<HTMLDivElement | null>(null);
 
   // rAF coalescing for Levels preview. Pointer events fire much faster than
   // the browser repaints — collapse all of them into one update per frame.
@@ -47,14 +52,59 @@ export function App() {
 
   const displayImage = useMemo<RasterImage | null>(() => {
     if (!sourceImage) return null;
-    // Route the levels preview through the downsampled copy so slider drag
-    // stays smooth on multi-megapixel files. Channel mask alone is cheap and
-    // always runs on the full-res source.
     if (pipeline.levels && previewSource) {
       return applyPipeline(previewSource, pipeline);
     }
     return applyPipeline(sourceImage, pipeline);
   }, [sourceImage, previewSource, pipeline]);
+
+  // Fit-to-view when image dimensions change (file load, destructive resize).
+  // Levels Apply keeps the same dimensions and therefore the user's zoom.
+  const prevDimsKeyRef = useRef<string>('');
+  useEffect(() => {
+    if (!sourceImage || !viewportRef.current) return;
+    const key = `${sourceImage.width}x${sourceImage.height}`;
+    if (prevDimsKeyRef.current === key) return;
+    prevDimsKeyRef.current = key;
+    const rect = viewportRef.current.getBoundingClientRect();
+    setViewZoom(computeFitZoom(sourceImage, rect.width, rect.height));
+  }, [sourceImage]);
+
+  // Keyboard zoom shortcuts: + / - step, 0 fit, 1 = 100%. Skipped when an
+  // input has focus so typing into the zoom number field doesn't fight us.
+  useEffect(() => {
+    if (!sourceImage) return;
+    const handler = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as Element | null;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+      if (event.key === '+' || event.key === '=') {
+        event.preventDefault();
+        setViewZoom((z) => clampZoom(Math.round(z * ZOOM_KEY_STEP)));
+      } else if (event.key === '-' || event.key === '_') {
+        event.preventDefault();
+        setViewZoom((z) => clampZoom(Math.round(z / ZOOM_KEY_STEP)));
+      } else if (event.key === '0') {
+        event.preventDefault();
+        if (viewportRef.current) {
+          const rect = viewportRef.current.getBoundingClientRect();
+          setViewZoom(computeFitZoom(sourceImage, rect.width, rect.height));
+        }
+      } else if (event.key === '1') {
+        event.preventDefault();
+        setViewZoom(100);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [sourceImage]);
 
   const handleLoaded = useCallback((next: RasterImage) => {
     setSourceImage(next);
@@ -80,9 +130,6 @@ export function App() {
     if (next === 'none') setPickedPixel(null);
   }, []);
 
-  // Click coords arrive in displayImage pixel space. When the preview is
-  // routed through a downsampled copy, scale them back to source space so
-  // the eyedropper reads the correct pixel from sourceImage.
   const handlePickPixel = useCallback(
     (displayX: number, displayY: number) => {
       if (!sourceImage || !displayImage) return;
@@ -130,8 +177,6 @@ export function App() {
       <Toolbar
         image={sourceImage}
         onPickFile={loadFile}
-        fitToView={fitToView}
-        onToggleFit={setFitToView}
         isLoading={isLoading}
         tool={tool}
         onToggleTool={handleToggleTool}
@@ -139,8 +184,9 @@ export function App() {
       />
       <div className="flex min-h-0 flex-col lg:flex-row">
         <CanvasView
+          ref={viewportRef}
           image={displayImage}
-          fitToView={fitToView}
+          viewZoom={viewZoom}
           lastError={sourceImage ? null : lastError}
           onDropFile={loadFile}
           tool={tool}
@@ -153,7 +199,12 @@ export function App() {
           onToggle={toggleChannel}
         />
       </div>
-      <StatusBar image={sourceImage} pickedPixel={pickedPixel} />
+      <StatusBar
+        image={sourceImage}
+        pickedPixel={pickedPixel}
+        viewZoom={viewZoom}
+        onViewZoomChange={setViewZoom}
+      />
       <Toaster richColors position="bottom-right" closeButton />
       {sourceImage && (
         <LevelsDialog
