@@ -1,5 +1,11 @@
 import { useRef, useState } from 'react';
-import { Download, FolderOpen, Pipette, SlidersHorizontal } from 'lucide-react';
+import {
+  Download,
+  FolderOpen,
+  Pipette,
+  Scaling,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { Button } from './ui/button';
 import { SaveAsDialog } from './SaveAsDialog';
 import type { RasterImage } from '@/formats/types';
@@ -12,6 +18,7 @@ type Props = {
   tool: Tool;
   onToggleTool: (next: Tool) => void;
   onOpenLevels: () => void;
+  onOpenResize: () => void;
 };
 
 const ACCEPTED = '.png,.jpg,.jpeg,.gb7,image/png,image/jpeg';
@@ -23,6 +30,7 @@ export function Toolbar({
   tool,
   onToggleTool,
   onOpenLevels,
+  onOpenResize,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -67,6 +75,17 @@ export function Toolbar({
       </Button>
 
       <div className="mx-1 h-6 w-px bg-border" />
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onOpenResize}
+        disabled={!image || isLoading}
+        title="Размер изображения — изменить ширину и высоту"
+      >
+        <Scaling className="mr-1 h-4 w-4" />
+        Размер
+      </Button>
 
       <Button
         variant="outline"

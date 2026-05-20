@@ -5,12 +5,14 @@ import { CanvasView } from './components/CanvasView';
 import { StatusBar } from './components/StatusBar';
 import { ChannelsPanel } from './components/ChannelsPanel';
 import { LevelsDialog } from './components/LevelsDialog';
+import { ResizeDialog } from './components/ResizeDialog';
 import { useImageFile } from './hooks/useImageFile';
 import type { Channel, RasterImage } from './formats/types';
 import { applyPipeline } from './transforms/apply';
 import { DEFAULT_PIPELINE, type Pipeline } from './transforms/types';
 import { applyLevels, type LevelsBag } from './transforms/levels';
 import { downsampleImage } from './transforms/downsample';
+import { resizeImage, type InterpolationMethod } from './transforms/resize';
 import type { PickedPixel, Tool } from './tools/types';
 import { srgbToLab } from './color/srgb-to-lab';
 import { clampZoom, computeFitZoom } from './canvas/zoom';
@@ -28,6 +30,7 @@ export function App() {
   const [lastError, setLastError] = useState<string | null>(null);
   const [viewZoom, setViewZoom] = useState<number>(100);
   const [levelsOpen, setLevelsOpen] = useState(false);
+  const [resizeOpen, setResizeOpen] = useState(false);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -167,6 +170,18 @@ export function App() {
     toast.success('Уровни применены');
   }, []);
 
+  const handleResizeApply = useCallback(
+    (newWidth: number, newHeight: number, method: InterpolationMethod) => {
+      setSourceImage((prev) => (prev ? resizeImage(prev, newWidth, newHeight, method) : prev));
+      // Dimensions change → previous coords and any in-flight Levels preview
+      // no longer apply to the new pixels.
+      setPickedPixel(null);
+      setPipeline((prev) => ({ ...prev, levels: null }));
+      toast.success(`Размер изменён: ${newWidth} × ${newHeight}`);
+    },
+    [],
+  );
+
   const { loadFile, isLoading } = useImageFile({
     onLoaded: handleLoaded,
     onError: handleError,
@@ -181,6 +196,7 @@ export function App() {
         tool={tool}
         onToggleTool={handleToggleTool}
         onOpenLevels={() => setLevelsOpen(true)}
+        onOpenResize={() => setResizeOpen(true)}
       />
       <div className="flex min-h-0 flex-col lg:flex-row">
         <CanvasView
@@ -213,6 +229,14 @@ export function App() {
           onOpenChange={setLevelsOpen}
           onPreviewBag={handleLevelsPreview}
           onApply={handleLevelsApply}
+        />
+      )}
+      {sourceImage && (
+        <ResizeDialog
+          image={sourceImage}
+          open={resizeOpen}
+          onOpenChange={setResizeOpen}
+          onApply={handleResizeApply}
         />
       )}
     </div>
