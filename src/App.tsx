@@ -10,8 +10,12 @@ import type { Channel, RasterImage } from './formats/types';
 import { applyPipeline } from './transforms/apply';
 import { DEFAULT_PIPELINE, type Pipeline } from './transforms/types';
 import { applyLevels, type LevelsBag } from './transforms/levels';
+import { downsampleImage } from './transforms/downsample';
 import type { PickedPixel, Tool } from './tools/types';
 import { srgbToLab } from './color/srgb-to-lab';
+
+/** Longest side, in pixels, for the Levels-preview working copy. */
+const PREVIEW_MAX_DIMENSION = 1500;
 
 export function App() {
   const [sourceImage, setSourceImage] = useState<RasterImage | null>(null);
@@ -22,9 +26,8 @@ export function App() {
   const [fitToView, setFitToView] = useState(true);
   const [levelsOpen, setLevelsOpen] = useState(false);
 
-  // rAF-throttling for the Levels preview. applyLevels on a multi-megapixel
-  // image can cost ~10ms, and pointer events fire much faster than the
-  // browser repaints — coalesce all of them into one update per frame.
+  // rAF coalescing for Levels preview. Pointer events fire much faster than
+  // the browser repaints — collapse all of them into one update per frame.
   const pendingLevelsRef = useRef<LevelsBag | null>(null);
   const hasPendingLevelsRef = useRef(false);
   const rafIdRef = useRef<number | null>(null);
@@ -35,10 +38,23 @@ export function App() {
     };
   }, []);
 
-  const displayImage = useMemo<RasterImage | null>(
-    () => (sourceImage ? applyPipeline(sourceImage, pipeline) : null),
-    [sourceImage, pipeline],
-  );
+  // Downsampled working copy for the live preview. Computed once per file
+  // load; falls through to identity when the source is already small.
+  const previewSource = useMemo<RasterImage | null>(() => {
+    if (!sourceImage) return null;
+    return downsampleImage(sourceImage, PREVIEW_MAX_DIMENSION);
+  }, [sourceImage]);
+
+  const displayImage = useMemo<RasterImage | null>(() => {
+    if (!sourceImage) return null;
+    // Route the levels preview through the downsampled copy so slider drag
+    // stays smooth on multi-megapixel files. Channel mask alone is cheap and
+    // always runs on the full-res source.
+    if (pipeline.levels && previewSource) {
+      return applyPipeline(previewSource, pipeline);
+    }
+    return applyPipeline(sourceImage, pipeline);
+  }, [sourceImage, previewSource, pipeline]);
 
   const handleLoaded = useCallback((next: RasterImage) => {
     setSourceImage(next);
@@ -64,9 +80,16 @@ export function App() {
     if (next === 'none') setPickedPixel(null);
   }, []);
 
+  // Click coords arrive in displayImage pixel space. When the preview is
+  // routed through a downsampled copy, scale them back to source space so
+  // the eyedropper reads the correct pixel from sourceImage.
   const handlePickPixel = useCallback(
-    (x: number, y: number) => {
-      if (!sourceImage) return;
+    (displayX: number, displayY: number) => {
+      if (!sourceImage || !displayImage) return;
+      const sx = sourceImage.width / displayImage.width;
+      const sy = sourceImage.height / displayImage.height;
+      const x = Math.min(sourceImage.width - 1, Math.floor(displayX * sx));
+      const y = Math.min(sourceImage.height - 1, Math.floor(displayY * sy));
       const o = (y * sourceImage.width + x) * 4;
       const r = sourceImage.pixels[o]!;
       const g = sourceImage.pixels[o + 1]!;
@@ -74,7 +97,7 @@ export function App() {
       const a = sourceImage.pixels[o + 3]!;
       setPickedPixel({ x, y, r, g, b, a, lab: srgbToLab(r, g, b) });
     },
-    [sourceImage],
+    [sourceImage, displayImage],
   );
 
   const handleLevelsPreview = useCallback((bag: LevelsBag | null) => {
