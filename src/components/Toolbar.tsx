@@ -1,5 +1,12 @@
 import { useRef, useState } from 'react';
-import { Download, FolderOpen, Maximize2, Minimize2, Pipette } from 'lucide-react';
+import {
+  Download,
+  FolderOpen,
+  Maximize2,
+  Minimize2,
+  Pipette,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { Button } from './ui/button';
 import { SaveAsDialog } from './SaveAsDialog';
 import type { RasterImage } from '@/formats/types';
@@ -13,6 +20,7 @@ type Props = {
   isLoading: boolean;
   tool: Tool;
   onToggleTool: (next: Tool) => void;
+  onOpenLevels: () => void;
 };
 
 const ACCEPTED = '.png,.jpg,.jpeg,.gb7,image/png,image/jpeg';
@@ -25,6 +33,7 @@ export function Toolbar({
   isLoading,
   tool,
   onToggleTool,
+  onOpenLevels,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -69,6 +78,17 @@ export function Toolbar({
       </Button>
 
       <div className="mx-1 h-6 w-px bg-border" />
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onOpenLevels}
+        disabled={!image || isLoading}
+        title="Уровни — гистограмма + точки чёрного, белого и средних тонов"
+      >
+        <SlidersHorizontal className="mr-1 h-4 w-4" />
+        Уровни
+      </Button>
 
       <Button
         variant={eyedropperOn ? 'default' : 'ghost'}

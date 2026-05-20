@@ -1,4 +1,5 @@
 import type { Channel } from '../formats/types';
+import type { LevelsBag } from './levels';
 
 /**
  * Per-channel enable/disable map. Always carries entries for every Channel —
@@ -9,15 +10,17 @@ export type ChannelMask = Record<Channel, boolean>;
 
 /**
  * Composable view-time transforms applied to sourceImage before it lands on
- * the canvas. ChannelMask is currently the only entry; future filters
- * (lab-3+) extend this shape, and applyPipeline composes them in order.
+ * the canvas. Each entry is independent and short-circuits to identity when
+ * it has nothing to do. applyPipeline composes them in a fixed order
+ * (see apply.ts).
  *
- * Note: pipeline is **view-only** — Save As exports sourceImage, not the
- * pipelined result. When destructive edits arrive, they will live in a
- * separate edit stack, not here.
+ * View-only by contract: Save As exports sourceImage, never the pipelined
+ * result. Levels uses pipeline for *preview* only — destructive Apply bakes
+ * the LUT into sourceImage and clears pipeline.levels.
  */
 export type Pipeline = {
   channelMask: ChannelMask;
+  levels: LevelsBag | null;
 };
 
 export const FULL_CHANNEL_MASK: ChannelMask = {
@@ -30,4 +33,5 @@ export const FULL_CHANNEL_MASK: ChannelMask = {
 
 export const DEFAULT_PIPELINE: Pipeline = {
   channelMask: { ...FULL_CHANNEL_MASK },
+  levels: null,
 };

@@ -1,13 +1,15 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import { Toolbar } from './components/Toolbar';
 import { CanvasView } from './components/CanvasView';
 import { StatusBar } from './components/StatusBar';
 import { ChannelsPanel } from './components/ChannelsPanel';
+import { LevelsDialog } from './components/LevelsDialog';
 import { useImageFile } from './hooks/useImageFile';
 import type { Channel, RasterImage } from './formats/types';
 import { applyPipeline } from './transforms/apply';
 import { DEFAULT_PIPELINE, type Pipeline } from './transforms/types';
+import { applyLevels, type LevelsBag } from './transforms/levels';
 import type { PickedPixel, Tool } from './tools/types';
 import { srgbToLab } from './color/srgb-to-lab';
 
@@ -18,6 +20,20 @@ export function App() {
   const [pickedPixel, setPickedPixel] = useState<PickedPixel | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [fitToView, setFitToView] = useState(true);
+  const [levelsOpen, setLevelsOpen] = useState(false);
+
+  // rAF-throttling for the Levels preview. applyLevels on a multi-megapixel
+  // image can cost ~10ms, and pointer events fire much faster than the
+  // browser repaints — coalesce all of them into one update per frame.
+  const pendingLevelsRef = useRef<LevelsBag | null>(null);
+  const hasPendingLevelsRef = useRef(false);
+  const rafIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current);
+    };
+  }, []);
 
   const displayImage = useMemo<RasterImage | null>(
     () => (sourceImage ? applyPipeline(sourceImage, pipeline) : null),
@@ -61,6 +77,26 @@ export function App() {
     [sourceImage],
   );
 
+  const handleLevelsPreview = useCallback((bag: LevelsBag | null) => {
+    pendingLevelsRef.current = bag;
+    hasPendingLevelsRef.current = true;
+    if (rafIdRef.current !== null) return;
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      if (!hasPendingLevelsRef.current) return;
+      hasPendingLevelsRef.current = false;
+      const next = pendingLevelsRef.current;
+      setPipeline((prev) => ({ ...prev, levels: next }));
+    });
+  }, []);
+
+  const handleLevelsApply = useCallback((bag: LevelsBag) => {
+    setSourceImage((prev) => (prev ? applyLevels(prev, bag) : prev));
+    setPipeline((prev) => ({ ...prev, levels: null }));
+    setPickedPixel(null);
+    toast.success('Уровни применены');
+  }, []);
+
   const { loadFile, isLoading } = useImageFile({
     onLoaded: handleLoaded,
     onError: handleError,
@@ -76,6 +112,7 @@ export function App() {
         isLoading={isLoading}
         tool={tool}
         onToggleTool={handleToggleTool}
+        onOpenLevels={() => setLevelsOpen(true)}
       />
       <div className="flex min-h-0 flex-col lg:flex-row">
         <CanvasView
@@ -95,6 +132,15 @@ export function App() {
       </div>
       <StatusBar image={sourceImage} pickedPixel={pickedPixel} />
       <Toaster richColors position="bottom-right" closeButton />
+      {sourceImage && (
+        <LevelsDialog
+          image={sourceImage}
+          open={levelsOpen}
+          onOpenChange={setLevelsOpen}
+          onPreviewBag={handleLevelsPreview}
+          onApply={handleLevelsApply}
+        />
+      )}
     </div>
   );
 }
