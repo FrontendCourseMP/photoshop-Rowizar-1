@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { computeHistogram, type HistogramSource } from '@/transforms/histogram';
 import {
   IDENTITY_LEVELS_BAG,
+  isIdentityBag,
   type LevelsBag,
   type LevelsParams,
 } from '@/transforms/levels';
@@ -78,9 +79,24 @@ export function LevelsDialog({ image, open, onOpenChange, onPreviewBag, onApply 
     }
   }, [open, tabs]);
 
-  // Push current preview state to the parent.
+  // After Apply replaces sourceImage while the panel stays open, reset the
+  // bag to identity so the next pass starts from the freshly baked picture.
+  // Tab/scale/preview stay as-is — the user keeps their working context.
   useEffect(() => {
-    if (open && previewOn) onPreviewBag(bag);
+    setBag(IDENTITY_LEVELS_BAG);
+  }, [image]);
+
+  // If the new image lost a channel the user was editing (e.g. switched
+  // from RGBA to RGB), drop down to a valid tab.
+  useEffect(() => {
+    if (!tabs.includes(tab)) setTab(tabs[0] ?? 'master');
+  }, [tabs, tab]);
+
+  // Push current preview to the parent only when the bag actually changes
+  // pixels. An identity bag pretends preview is off so the canvas stays on
+  // the full-resolution sourceImage instead of the downsampled preview copy.
+  useEffect(() => {
+    if (open && previewOn && !isIdentityBag(bag)) onPreviewBag(bag);
     else onPreviewBag(null);
   }, [open, previewOn, bag, onPreviewBag]);
 
@@ -111,9 +127,11 @@ export function LevelsDialog({ image, open, onOpenChange, onPreviewBag, onApply 
   };
 
   const handleReset = () => setBag(IDENTITY_LEVELS_BAG);
+  // Apply bakes the LUT into sourceImage but keeps the panel open so the
+  // user can layer another pass without re-opening it. The image-change
+  // effect above resets the bag to identity for the next iteration.
   const handleApply = () => {
     onApply(bag);
-    closePanel();
   };
 
   const onHeaderPointerDown = (event: React.PointerEvent) => {
@@ -173,6 +191,7 @@ export function LevelsDialog({ image, open, onOpenChange, onPreviewBag, onApply 
         <button
           type="button"
           onClick={closePanel}
+          onPointerDown={(event) => event.stopPropagation()}
           className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label="Закрыть"
         >
