@@ -59,16 +59,37 @@ export function isIdentityKernel(k: Kernel3x3): boolean {
  */
 export function applyConvolution(image: RasterImage, params: ConvolutionParams): RasterImage {
   if (isIdentityKernel(params.kernel)) return image;
+  const out = new Uint8ClampedArray(image.width * image.height * 4);
+  applyConvolutionRows(image, params, out, 0, image.height);
+  return {
+    width: image.width,
+    height: image.height,
+    pixels: out,
+    meta: image.meta,
+  };
+}
 
+/**
+ * Convolve rows [yStart, yEnd) of `image` and write into `out`. Sampling
+ * still reads from the full source image, so callers can process
+ * arbitrary horizontal slices without losing edge-neighbour fidelity at
+ * the chunk boundaries. Exposed for the async chunked wrapper.
+ */
+export function applyConvolutionRows(
+  image: RasterImage,
+  params: ConvolutionParams,
+  out: Uint8ClampedArray,
+  yStart: number,
+  yEnd: number,
+): void {
   const width = image.width;
   const height = image.height;
   const src = image.pixels;
-  const out = new Uint8ClampedArray(width * height * 4);
   const offsets = byteOffsetsForChannels(image, params.channels);
   const k = params.kernel;
   const edgeMode = params.edgeMode;
 
-  for (let y = 0; y < height; y++) {
+  for (let y = yStart; y < yEnd; y++) {
     for (let x = 0; x < width; x++) {
       const pix = (y * width + x) * 4;
       for (let c = 0; c < 4; c++) {
@@ -91,13 +112,6 @@ export function applyConvolution(image: RasterImage, params: ConvolutionParams):
       }
     }
   }
-
-  return {
-    width,
-    height,
-    pixels: out,
-    meta: image.meta,
-  };
 }
 
 /**
