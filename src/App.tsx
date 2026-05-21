@@ -6,6 +6,7 @@ import { StatusBar } from './components/StatusBar';
 import { ChannelsPanel } from './components/ChannelsPanel';
 import { LevelsDialog } from './components/LevelsDialog';
 import { ResizeDialog } from './components/ResizeDialog';
+import { ConvolutionDialog } from './components/ConvolutionDialog';
 import { useImageFile } from './hooks/useImageFile';
 import type { Channel, RasterImage } from './formats/types';
 import { applyPipeline } from './transforms/apply';
@@ -13,11 +14,16 @@ import { DEFAULT_PIPELINE, type Pipeline } from './transforms/types';
 import { applyLevels, type LevelsBag } from './transforms/levels';
 import { downsampleImage } from './transforms/downsample';
 import { resizeImage, type InterpolationMethod } from './transforms/resize';
+import type { ConvolutionParams } from './transforms/convolution';
+import {
+  applyConvolutionAsync,
+  ConvolutionAbortError,
+} from './transforms/convolution-async';
 import type { PickedPixel, Tool } from './tools/types';
 import { srgbToLab } from './color/srgb-to-lab';
 import { clampZoom, computeFitZoom } from './canvas/zoom';
 
-/** Longest side, in pixels, for the Levels-preview working copy. */
+/** Longest side, in pixels, for the live-preview working copy. */
 const PREVIEW_MAX_DIMENSION = 1500;
 /** Step factor for the +/- keyboard zoom shortcuts. */
 const ZOOM_KEY_STEP = 1.25;
@@ -31,6 +37,9 @@ export function App() {
   const [viewZoom, setViewZoom] = useState<number>(100);
   const [levelsOpen, setLevelsOpen] = useState(false);
   const [resizeOpen, setResizeOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterApplying, setFilterApplying] = useState(false);
+  const [filterProgress, setFilterProgress] = useState(0);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -38,16 +47,28 @@ export function App() {
   // the browser repaints — collapse all of them into one update per frame.
   const pendingLevelsRef = useRef<LevelsBag | null>(null);
   const hasPendingLevelsRef = useRef(false);
-  const rafIdRef = useRef<number | null>(null);
+  const levelsRafRef = useRef<number | null>(null);
+
+  // Same idea for Convolution: kernel edits and channel toggles can fire many
+  // times per frame, but the actual convolution runs once per repaint.
+  const pendingConvolutionRef = useRef<ConvolutionParams | null>(null);
+  const hasPendingConvolutionRef = useRef(false);
+  const convolutionRafRef = useRef<number | null>(null);
+
+  // AbortController for the in-flight async Apply. Aborted on a new file load
+  // or when the user starts another Apply on top of one already running.
+  const applyAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
-      if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current);
+      if (levelsRafRef.current !== null) cancelAnimationFrame(levelsRafRef.current);
+      if (convolutionRafRef.current !== null) cancelAnimationFrame(convolutionRafRef.current);
+      applyAbortRef.current?.abort();
     };
   }, []);
 
-  // Downsampled working copy for the live preview. Computed once per file
-  // load; falls through to identity when the source is already small.
+  // Downsampled working copy for live previews. Computed once per file load;
+  // falls through to identity when the source is already small.
   const previewSource = useMemo<RasterImage | null>(() => {
     if (!sourceImage) return null;
     return downsampleImage(sourceImage, PREVIEW_MAX_DIMENSION);
@@ -55,16 +76,19 @@ export function App() {
 
   const displayImage = useMemo<RasterImage | null>(() => {
     if (!sourceImage) return null;
-    if (pipeline.levels && previewSource) {
+    // Route any live-preview pipeline (Levels or Convolution) through the
+    // downsampled copy so slider drag and slider-like inputs stay smooth on
+    // multi-megapixel files. Channel mask alone is cheap and runs on source.
+    if ((pipeline.levels || pipeline.convolution) && previewSource) {
       return applyPipeline(previewSource, pipeline);
     }
     return applyPipeline(sourceImage, pipeline);
   }, [sourceImage, previewSource, pipeline]);
 
   // On-screen CSS size of the canvas is driven by **sourceImage** dimensions,
-  // not the bitmap inside the <canvas>. When a Levels preview replaces the
-  // bitmap with a downsampled copy, the rendered picture must stay the same
-  // CSS size — the browser scales the smaller bitmap up for free.
+  // not the bitmap inside the <canvas>. When a preview replaces the bitmap
+  // with a downsampled copy, the rendered picture must stay the same CSS
+  // size — the browser scales the smaller bitmap up for free.
   const canvasCssWidth = sourceImage
     ? Math.max(1, Math.round((sourceImage.width * viewZoom) / 100))
     : 0;
@@ -73,7 +97,7 @@ export function App() {
     : 0;
 
   // Fit-to-view when image dimensions change (file load, destructive resize).
-  // Levels Apply keeps the same dimensions and therefore the user's zoom.
+  // Same-size destructive Apply (Levels, Convolution) keeps the user's zoom.
   const prevDimsKeyRef = useRef<string>('');
   useEffect(() => {
     if (!sourceImage || !viewportRef.current) return;
@@ -82,6 +106,14 @@ export function App() {
     prevDimsKeyRef.current = key;
     const rect = viewportRef.current.getBoundingClientRect();
     setViewZoom(computeFitZoom(sourceImage, rect.width, rect.height));
+  }, [sourceImage]);
+
+  // Abort any in-flight convolution Apply when the user loads a new file so
+  // a stale result doesn't overwrite the new sourceImage after async wakes.
+  useEffect(() => {
+    return () => {
+      applyAbortRef.current?.abort();
+    };
   }, [sourceImage]);
 
   // Keyboard zoom shortcuts: + / - step, 0 fit, 1 = 100%. Skipped when an
@@ -164,9 +196,9 @@ export function App() {
   const handleLevelsPreview = useCallback((bag: LevelsBag | null) => {
     pendingLevelsRef.current = bag;
     hasPendingLevelsRef.current = true;
-    if (rafIdRef.current !== null) return;
-    rafIdRef.current = requestAnimationFrame(() => {
-      rafIdRef.current = null;
+    if (levelsRafRef.current !== null) return;
+    levelsRafRef.current = requestAnimationFrame(() => {
+      levelsRafRef.current = null;
       if (!hasPendingLevelsRef.current) return;
       hasPendingLevelsRef.current = false;
       const next = pendingLevelsRef.current;
@@ -184,14 +216,81 @@ export function App() {
   const handleResizeApply = useCallback(
     (newWidth: number, newHeight: number, method: InterpolationMethod) => {
       setSourceImage((prev) => (prev ? resizeImage(prev, newWidth, newHeight, method) : prev));
-      // Dimensions change → previous coords and any in-flight Levels preview
-      // no longer apply to the new pixels.
+      // Dimensions change → previous coords and any in-flight preview no
+      // longer apply to the new pixels.
       setPickedPixel(null);
-      setPipeline((prev) => ({ ...prev, levels: null }));
+      setPipeline((prev) => ({ ...prev, levels: null, convolution: null }));
       toast.success(`Размер изменён: ${newWidth} × ${newHeight}`);
     },
     [],
   );
+
+  const handleConvolutionPreview = useCallback((params: ConvolutionParams | null) => {
+    pendingConvolutionRef.current = params;
+    hasPendingConvolutionRef.current = true;
+    if (convolutionRafRef.current !== null) return;
+    convolutionRafRef.current = requestAnimationFrame(() => {
+      convolutionRafRef.current = null;
+      if (!hasPendingConvolutionRef.current) return;
+      hasPendingConvolutionRef.current = false;
+      const next = pendingConvolutionRef.current;
+      setPipeline((prev) => ({ ...prev, convolution: next }));
+    });
+  }, []);
+
+  const handleConvolutionApply = useCallback(
+    async (params: ConvolutionParams) => {
+      if (!sourceImage) return;
+      // Abort any prior in-flight Apply (defensive — the dialog disables its
+      // Apply button while applying=true, but a second app-level trigger
+      // would still race here without an explicit guard).
+      applyAbortRef.current?.abort();
+      const controller = new AbortController();
+      applyAbortRef.current = controller;
+
+      setFilterApplying(true);
+      setFilterProgress(0);
+
+      try {
+        const result = await applyConvolutionAsync(sourceImage, params, {
+          signal: controller.signal,
+          onProgress: setFilterProgress,
+        });
+        if (controller.signal.aborted) return;
+        setSourceImage(result);
+        setPipeline((prev) => ({ ...prev, convolution: null }));
+        setPickedPixel(null);
+        toast.success('Фильтр применён');
+      } catch (err) {
+        if (err instanceof ConvolutionAbortError) {
+          // Silent — the abort source (new file load, user closing) already
+          // gave their own feedback.
+          return;
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        toast.error(`Ошибка применения фильтра: ${message}`);
+      } finally {
+        if (applyAbortRef.current === controller) {
+          applyAbortRef.current = null;
+        }
+        setFilterApplying(false);
+        setFilterProgress(0);
+      }
+    },
+    [sourceImage],
+  );
+
+  // Opening one tool panel auto-cancels the other. Both panels clear their
+  // own preview slot on open=false via their preview-push effect, so just
+  // flipping the open flag is enough.
+  const openLevelsPanel = useCallback(() => {
+    setFilterOpen(false);
+    setLevelsOpen(true);
+  }, []);
+  const openFilterPanel = useCallback(() => {
+    setLevelsOpen(false);
+    setFilterOpen(true);
+  }, []);
 
   const { loadFile, isLoading } = useImageFile({
     onLoaded: handleLoaded,
@@ -206,8 +305,9 @@ export function App() {
         isLoading={isLoading}
         tool={tool}
         onToggleTool={handleToggleTool}
-        onOpenLevels={() => setLevelsOpen(true)}
+        onOpenLevels={openLevelsPanel}
         onOpenResize={() => setResizeOpen(true)}
+        onOpenFilter={openFilterPanel}
       />
       <div className="flex min-h-0 min-w-0 flex-col lg:flex-row">
         <CanvasView
@@ -249,6 +349,17 @@ export function App() {
           open={resizeOpen}
           onOpenChange={setResizeOpen}
           onApply={handleResizeApply}
+        />
+      )}
+      {sourceImage && (
+        <ConvolutionDialog
+          image={sourceImage}
+          open={filterOpen}
+          onOpenChange={setFilterOpen}
+          onPreview={handleConvolutionPreview}
+          onApply={handleConvolutionApply}
+          applying={filterApplying}
+          progress={filterProgress}
         />
       )}
     </div>

@@ -5,6 +5,7 @@ import {
   Pipette,
   Scaling,
   SlidersHorizontal,
+  Wand2,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { SaveAsDialog } from './SaveAsDialog';
@@ -19,6 +20,7 @@ type Props = {
   onToggleTool: (next: Tool) => void;
   onOpenLevels: () => void;
   onOpenResize: () => void;
+  onOpenFilter: () => void;
 };
 
 const ACCEPTED = '.png,.jpg,.jpeg,.gb7,image/png,image/jpeg';
@@ -31,6 +33,7 @@ export function Toolbar({
   onToggleTool,
   onOpenLevels,
   onOpenResize,
+  onOpenFilter,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -96,6 +99,17 @@ export function Toolbar({
       >
         <SlidersHorizontal className="mr-1 h-4 w-4" />
         Уровни
+      </Button>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onOpenFilter}
+        disabled={!image || isLoading}
+        title="Фильтр — свёртка с 3×3 ядром + пресеты"
+      >
+        <Wand2 className="mr-1 h-4 w-4" />
+        Фильтр
       </Button>
 
       <Button

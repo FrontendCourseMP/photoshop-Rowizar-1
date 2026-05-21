@@ -1,4 +1,5 @@
 import type { Channel } from '../formats/types';
+import type { ConvolutionParams } from './convolution';
 import type { LevelsBag } from './levels';
 
 /**
@@ -15,12 +16,13 @@ export type ChannelMask = Record<Channel, boolean>;
  * (see apply.ts).
  *
  * View-only by contract: Save As exports sourceImage, never the pipelined
- * result. Levels uses pipeline for *preview* only — destructive Apply bakes
- * the LUT into sourceImage and clears pipeline.levels.
+ * result. Destructive Apply (Levels, Convolution) bakes its result into
+ * sourceImage and clears its pipeline slot.
  */
 export type Pipeline = {
   channelMask: ChannelMask;
   levels: LevelsBag | null;
+  convolution: ConvolutionParams | null;
 };
 
 export const FULL_CHANNEL_MASK: ChannelMask = {
@@ -34,4 +36,5 @@ export const FULL_CHANNEL_MASK: ChannelMask = {
 export const DEFAULT_PIPELINE: Pipeline = {
   channelMask: { ...FULL_CHANNEL_MASK },
   levels: null,
+  convolution: null,
 };
