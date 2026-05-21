@@ -27,9 +27,8 @@ npm run lint         # eslint .
 
 В [`public/samples/`](public/samples/) лежат три GB7-файла (из LMS):
 `gradient-half-mask.gb7`, `kapibara-mask.gb7`, `vertical-kapibara.gb7`.
-Открываются как обычные PNG/JPG — кнопкой Open или перетаскиванием.
 
 ## Стек
 
 React 18 + TypeScript (strict), Vite, Tailwind CSS, shadcn/ui, Vitest,
-sonner. Деплой — Vercel (auto-build из `main`).
+sonner.
