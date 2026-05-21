@@ -61,6 +61,17 @@ export function App() {
     return applyPipeline(sourceImage, pipeline);
   }, [sourceImage, previewSource, pipeline]);
 
+  // On-screen CSS size of the canvas is driven by **sourceImage** dimensions,
+  // not the bitmap inside the <canvas>. When a Levels preview replaces the
+  // bitmap with a downsampled copy, the rendered picture must stay the same
+  // CSS size — the browser scales the smaller bitmap up for free.
+  const canvasCssWidth = sourceImage
+    ? Math.max(1, Math.round((sourceImage.width * viewZoom) / 100))
+    : 0;
+  const canvasCssHeight = sourceImage
+    ? Math.max(1, Math.round((sourceImage.height * viewZoom) / 100))
+    : 0;
+
   // Fit-to-view when image dimensions change (file load, destructive resize).
   // Levels Apply keeps the same dimensions and therefore the user's zoom.
   const prevDimsKeyRef = useRef<string>('');
@@ -188,7 +199,7 @@ export function App() {
   });
 
   return (
-    <div className="grid h-screen grid-rows-[auto_1fr_auto] bg-background text-foreground">
+    <div className="grid h-screen w-screen grid-rows-[auto_1fr_auto] overflow-hidden bg-background text-foreground">
       <Toolbar
         image={sourceImage}
         onPickFile={loadFile}
@@ -198,11 +209,12 @@ export function App() {
         onOpenLevels={() => setLevelsOpen(true)}
         onOpenResize={() => setResizeOpen(true)}
       />
-      <div className="flex min-h-0 flex-col lg:flex-row">
+      <div className="flex min-h-0 min-w-0 flex-col lg:flex-row">
         <CanvasView
           ref={viewportRef}
           image={displayImage}
-          viewZoom={viewZoom}
+          cssWidth={canvasCssWidth}
+          cssHeight={canvasCssHeight}
           lastError={sourceImage ? null : lastError}
           onDropFile={loadFile}
           tool={tool}

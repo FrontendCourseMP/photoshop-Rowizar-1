@@ -7,7 +7,11 @@ import { cn } from '@/lib/utils';
 
 type Props = {
   image: RasterImage | null;
-  viewZoom: number;
+  /** On-screen CSS width of the canvas in px. App computes it from
+   *  sourceImage (not displayImage) so a downsampled preview doesn't shrink
+   *  the rendered picture. */
+  cssWidth: number;
+  cssHeight: number;
   lastError: string | null;
   onDropFile: (file: File) => void;
   tool: Tool;
@@ -19,10 +23,10 @@ type Props = {
  * Canvas viewport. The outer div is exposed via ref so App can measure
  * available space for the initial fit-to-view computation. View zoom is a
  * CSS-only concept — we set inline width/height on the <canvas>, the
- * bitmap stays at native source size and the browser scales for us.
+ * bitmap stays at its native size and the browser scales for us.
  */
 export const CanvasView = forwardRef<HTMLDivElement, Props>(function CanvasView(
-  { image, viewZoom, lastError, onDropFile, tool, onPickPixel, className },
+  { image, cssWidth, cssHeight, lastError, onDropFile, tool, onPickPixel, className },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -67,14 +71,15 @@ export const CanvasView = forwardRef<HTMLDivElement, Props>(function CanvasView(
     onPickPixel(x, y);
   };
 
-  const cssWidth = image ? Math.max(1, Math.round((image.width * viewZoom) / 100)) : 0;
-  const cssHeight = image ? Math.max(1, Math.round((image.height * viewZoom) / 100)) : 0;
-
   return (
     <div
       ref={ref}
       className={cn(
-        'relative flex min-h-0 items-center justify-center overflow-auto bg-muted/40 p-4 transition-colors',
+        // min-w-0 alongside min-h-0 lets the flex child shrink below its
+        // content's intrinsic size. Without it a zoomed-up canvas would push
+        // the parent flex container wider than the viewport and the whole
+        // layout would grow instead of letting overflow-auto scroll.
+        'relative flex min-h-0 min-w-0 items-center justify-center overflow-auto bg-muted/40 p-4 transition-colors',
         isDragging && 'bg-primary/10 ring-2 ring-inset ring-primary',
         className,
       )}

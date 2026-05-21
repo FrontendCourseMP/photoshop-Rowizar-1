@@ -82,8 +82,10 @@ function ZoomControl({ value, onChange, disabled }: ZoomProps) {
         step={0.1}
         value={zoomToSlider(value)}
         onChange={(event) => {
-          const z = sliderToZoom(parseFloat(event.target.value));
-          onChange(clampZoom(Math.round(z)));
+          // Keep the float — rounding here would force React to overwrite the
+          // browser-controlled thumb position on every event and the slider
+          // would fight the cursor on the log-shaped lower half of the range.
+          onChange(clampZoom(sliderToZoom(parseFloat(event.target.value))));
         }}
         disabled={disabled}
         title="Масштаб — клавиши +/-, 0 для fit, 1 для 100%"
@@ -94,7 +96,7 @@ function ZoomControl({ value, onChange, disabled }: ZoomProps) {
         min={ZOOM_MIN}
         max={ZOOM_MAX}
         step={1}
-        value={value}
+        value={Math.round(value)}
         onChange={(event) => {
           const n = parseInt(event.target.value, 10);
           if (Number.isFinite(n)) onChange(clampZoom(n));
