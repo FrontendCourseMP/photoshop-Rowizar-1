@@ -24,7 +24,10 @@ const FORMAT_LABEL: Record<string, string> = {
 
 function depthLabel(meta: RasterImage['meta']): string {
   if (meta.format === 'gb7') return meta.hasMask ? '7 + 1 бит' : '7 бит';
-  return '24 бит';
+  // PNG/JPEG store 8 bits per channel (16-bit PNG isn't handled by our
+  // browser pipeline). Total bits-per-pixel = channels × 8:
+  // RGBA = 32, RGB = 24, Gray+A = 16, Gray = 8.
+  return `${meta.channels.length * 8} бит`;
 }
 
 export function StatusBar({ image, pickedPixel, viewZoom, onViewZoomChange }: Props) {
@@ -57,9 +60,12 @@ export function StatusBar({ image, pickedPixel, viewZoom, onViewZoomChange }: Pr
           disabled={!image}
         />
       </div>
-      {pickedPixel && (
+      {/* The pixel info row stays mounted whenever an image is loaded, even
+          when no pixel has been picked yet — toggling its visibility on
+          first-click and on eyedropper-off was causing layout jumps. */}
+      {image && (
         <div className="mt-1 border-t border-border/60 pt-1">
-          <PixelInfoPanel pixel={pickedPixel} />
+          <PixelInfoPanel pixel={pickedPixel ?? null} />
         </div>
       )}
     </div>
