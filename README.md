@@ -2,7 +2,7 @@
 
 Учебный редактор растровых изображений.
 
-**🌐 Live**: https://loquacious-biscochitos-0eba4c.netlify.app/
+**🌐 Live**: https://extraordinary-dieffenbachia-c16f29.netlify.app/
 
 ## Запуск
 
