@@ -2,7 +2,7 @@
 
 Учебный редактор растровых изображений.
 
-**🌐 Live**: https://extraordinary-dieffenbachia-c16f29.netlify.app/
+**🌐 Live**: https://jade-baklava-3de437.netlify.app/
 
 ## Запуск
 
