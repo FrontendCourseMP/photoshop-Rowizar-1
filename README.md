@@ -1,10 +1,8 @@
 # Image Studio
 
-Учебный редактор растровых изображений. Lab-1 — загрузка, отрисовка и
-сохранение PNG / JPEG / GB7. Следующие лабы наращивают функционал
-(фильтры, цветовые модели, гистограммы и т.д.).
+Учебный редактор растровых изображений.
 
-**🌐 Live**:...
+**🌐 Live**: https://loquacious-biscochitos-0eba4c.netlify.app/
 
 ## Запуск
 
@@ -22,11 +20,6 @@ npm run build        # production-сборка в dist/
 npm run preview      # просмотр production-сборки
 npm run lint         # eslint .
 ```
-
-## Тестовые изображения
-
-В [`public/samples/`](public/samples/) лежат три GB7-файла (из LMS):
-`gradient-half-mask.gb7`, `kapibara-mask.gb7`, `vertical-kapibara.gb7`.
 
 ## Стек
 
