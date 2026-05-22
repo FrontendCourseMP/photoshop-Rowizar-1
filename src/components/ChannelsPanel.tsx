@@ -13,7 +13,8 @@ const CHANNEL_LABELS: Record<Channel, string> = {
   Gray: 'Серый',
 };
 
-const THUMB_WIDTH = 180;
+const THUMB_WIDTH = 140;
+const THUMB_HEIGHT = 48;
 
 type Props = {
   image: RasterImage | null;
@@ -64,9 +65,8 @@ function ChannelThumbnail({ image, channel, enabled, onToggle }: ThumbProps) {
 
   useEffect(() => {
     if (!canvasRef.current) return;
-    const aspect = image.width / image.height;
     const targetW = THUMB_WIDTH;
-    const targetH = Math.max(1, Math.round(targetW / aspect));
+    const targetH = THUMB_HEIGHT;
 
     const pixels = extractChannelAsGrayscale(image, channel);
     const imageData = new ImageData(pixels, image.width, image.height);
@@ -81,9 +81,28 @@ function ChannelThumbnail({ image, channel, enabled, onToggle }: ThumbProps) {
     canvas.height = targetH;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // Fixed-aspect "letterbox" fit: every channel renders into the same
+    // elongated rectangle regardless of source image shape, so the panel
+    // doesn't reflow for square vs. portrait images.
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, targetW, targetH);
+    const srcAspect = image.width / image.height;
+    const dstAspect = targetW / targetH;
+    let drawW: number;
+    let drawH: number;
+    if (srcAspect > dstAspect) {
+      drawW = targetW;
+      drawH = targetW / srcAspect;
+    } else {
+      drawH = targetH;
+      drawW = targetH * srcAspect;
+    }
+    const drawX = (targetW - drawW) / 2;
+    const drawY = (targetH - drawH) / 2;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(offscreen, 0, 0, targetW, targetH);
+    ctx.drawImage(offscreen, drawX, drawY, drawW, drawH);
   }, [image, channel]);
 
   return (
@@ -93,14 +112,17 @@ function ChannelThumbnail({ image, channel, enabled, onToggle }: ThumbProps) {
       title={enabled ? 'Отключить канал' : 'Включить канал'}
       aria-pressed={enabled}
       className={cn(
-        'flex shrink-0 flex-col gap-1 rounded-md border p-2 text-left transition-colors',
-        'w-40 lg:w-full',
+        'flex shrink-0 flex-col gap-1 rounded-md border p-1.5 text-left transition-colors',
         enabled
           ? 'border-primary bg-primary/5'
           : 'border-border bg-muted/40 opacity-50 hover:opacity-80',
       )}
     >
-      <canvas ref={canvasRef} className="block w-full rounded-sm bg-black" />
+      <canvas
+        ref={canvasRef}
+        className="block rounded-sm bg-black"
+        style={{ width: THUMB_WIDTH, height: THUMB_HEIGHT }}
+      />
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium">{CHANNEL_LABELS[channel]}</span>
         <span className="flex items-center gap-1 text-muted-foreground">
