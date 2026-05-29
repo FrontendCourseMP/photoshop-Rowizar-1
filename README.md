@@ -2,7 +2,7 @@
 
 Учебный редактор растровых изображений.
 
-**🌐 Live**: https://jade-baklava-3de437.netlify.app/
+**🌐 Live**: https://silly-froyo-74d243.netlify.app/
 
 ## Запуск
 
